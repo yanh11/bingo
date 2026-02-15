@@ -268,7 +268,7 @@
       }
 
       if (isHokkien) {
-        voiceHint.textContent = '已啟用臺語（Hokkien）播報。';
+        voiceHint.textContent = '已啟用臺語（Hokkien）播報，優先使用內建音檔。';
         return;
       }
 
@@ -407,13 +407,24 @@
       }
     }
 
-    startButton.addEventListener('click', () => {
+    startButton.addEventListener('click', async () => {
       initVoiceList();
       ensureAudioContext();
+      startButton.disabled = true;
+
+      if (!hokkienAudioMap.size) {
+        try {
+          await preloadHokkienAudio();
+        } catch (error) {
+          voiceHint.textContent = '內建臺語音檔載入失敗，將改用國語語音播報。';
+        }
+      }
+
       resetRound();
       welcomeScreen.classList.add('hidden');
       gameScreen.classList.remove('hidden');
       drawNextNumber(false);
+      startButton.disabled = false;
     });
 
     nextButton.addEventListener('click', () => drawNextNumber(true));
