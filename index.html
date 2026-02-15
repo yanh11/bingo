@@ -186,7 +186,7 @@
           <span>播報語言</span>
           <select id="speech-mode">
             <option value="mandarin">國語（繁體）</option>
-            <option value="hokkien">臺語（Hokkien，需裝置支援）</option>
+            <option value="hokkien">臺語（Hokkien，使用內建音檔）</option>
           </select>
         </div>
 
@@ -214,6 +214,7 @@
     </section>
   </main>
 
+  <script src="audio/nan-tw-data.js"></script>
   <script>
     const welcomeScreen = document.getElementById('welcome-screen');
     const gameScreen = document.getElementById('game-screen');
@@ -233,6 +234,13 @@
     let calledNumbers = [];
     let voiceMap = { mandarin: null, hokkien: null };
     let audioContext = null;
+    const hokkienAudioData = window.NAN_TW_AUDIO_DATA || {};
+    const hokkienAudioMap = new Map(
+      Object.entries(hokkienAudioData).map(([number, base64Data]) => [
+        Number(number),
+        new Audio(`data:audio/wav;base64,${base64Data}`),
+      ])
+    );
 
     function updateSpeedLabel() {
       speedValue.textContent = `${Number(speedSlider.value).toFixed(1)}x`;
@@ -245,11 +253,17 @@
     function updateVoiceHint() {
       const isHokkien = speechModeSelect.value === 'hokkien';
       const hasHokkienVoice = Boolean(voiceMap.hokkien);
+      const hasBuiltinAudio = hokkienAudioMap.size > 0;
 
-      voiceHint.classList.toggle('warning', isHokkien && !hasHokkienVoice);
+      voiceHint.classList.toggle('warning', isHokkien && !hasHokkienVoice && !hasBuiltinAudio);
+
+      if (isHokkien && hasBuiltinAudio) {
+        voiceHint.textContent = '已啟用臺語（Hokkien）播報，使用內建音檔。';
+        return;
+      }
 
       if (isHokkien && !hasHokkienVoice) {
-        voiceHint.textContent = '目前裝置未偵測到臺語語音（nan-TW）。將改用國語語音播報；若要純臺語建議使用支援臺語語音的瀏覽器或改用預錄音檔。';
+        voiceHint.textContent = '目前裝置未偵測到臺語語音（nan-TW），且內建音檔不可用，將改用國語語音播報。';
         return;
       }
 
@@ -330,6 +344,20 @@
     function speakNumber(number) {
       ensureAudioContext();
       playFallbackTone();
+
+      const isHokkien = speechModeSelect.value === 'hokkien';
+      if (isHokkien) {
+        const audio = hokkienAudioMap.get(number);
+        if (audio) {
+          audio.pause();
+          audio.currentTime = 0;
+          audio.playbackRate = getSpeechRate();
+          audio.play().catch(() => {
+            // ignore autoplay failures after user interaction edge cases
+          });
+          return;
+        }
+      }
 
       if (!('speechSynthesis' in window)) return;
 
