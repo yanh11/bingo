@@ -186,7 +186,7 @@
           <span>播報語言</span>
           <select id="speech-mode">
             <option value="mandarin">國語（繁體）</option>
-            <option value="hokkien">臺語（Hokkien，需裝置支援）</option>
+            <option value="hokkien">臺語（Hokkien，使用本地 mp4）</option>
           </select>
         </div>
 
@@ -232,7 +232,12 @@
     let remainingNumbers = [];
     let calledNumbers = [];
     let voiceMap = { mandarin: null, hokkien: null };
-    let audioContext = null;
+    const hokkienAudioMap = new Map(
+      Array.from({ length: 75 }, (_, index) => {
+        const number = index + 1;
+        return [number, `audio/nan-tw/${number}.mp4`];
+      })
+    );
 
     function updateSpeedLabel() {
       speedValue.textContent = `${Number(speedSlider.value).toFixed(1)}x`;
@@ -245,11 +250,17 @@
     function updateVoiceHint() {
       const isHokkien = speechModeSelect.value === 'hokkien';
       const hasHokkienVoice = Boolean(voiceMap.hokkien);
+      const hasBuiltinAudio = hokkienAudioMap.size > 0;
 
-      voiceHint.classList.toggle('warning', isHokkien && !hasHokkienVoice);
+      voiceHint.classList.toggle('warning', isHokkien && !hasHokkienVoice && !hasBuiltinAudio);
+
+      if (isHokkien && hasBuiltinAudio) {
+        voiceHint.textContent = '已啟用臺語（Hokkien）播報，使用本地 mp4 音檔。';
+        return;
+      }
 
       if (isHokkien && !hasHokkienVoice) {
-        voiceHint.textContent = '目前裝置未偵測到臺語語音（nan-TW）。將改用國語語音播報；若要純臺語建議使用支援臺語語音的瀏覽器或改用預錄音檔。';
+        voiceHint.textContent = '目前裝置未偵測到臺語語音（nan-TW），且 mp4 音檔不可用，將改用國語語音播報。';
         return;
       }
 
@@ -273,33 +284,6 @@
           || null,
       };
       updateVoiceHint();
-    }
-
-    function ensureAudioContext() {
-      if (!audioContext) {
-        const Context = window.AudioContext || window.webkitAudioContext;
-        if (!Context) return;
-        audioContext = new Context();
-      }
-      if (audioContext.state === 'suspended') {
-        audioContext.resume();
-      }
-    }
-
-    function playFallbackTone() {
-      if (!audioContext) return;
-      const oscillator = audioContext.createOscillator();
-      const gainNode = audioContext.createGain();
-
-      oscillator.type = 'sine';
-      oscillator.frequency.value = 880;
-      gainNode.gain.value = 0.04;
-
-      oscillator.connect(gainNode);
-      gainNode.connect(audioContext.destination);
-
-      oscillator.start();
-      oscillator.stop(audioContext.currentTime + 0.15);
     }
 
     function resetRound() {
@@ -327,10 +311,7 @@
       return isHokkien ? (voiceMap.hokkien ? 'nan-TW' : 'zh-TW') : 'zh-TW';
     }
 
-    function speakNumber(number) {
-      ensureAudioContext();
-      playFallbackTone();
-
+    function playSpeechSynthesis(number) {
       if (!('speechSynthesis' in window)) return;
 
       const utterance = new SpeechSynthesisUtterance(buildSpokenText(number));
@@ -342,6 +323,23 @@
 
       speechSynthesis.cancel();
       speechSynthesis.speak(utterance);
+    }
+
+    function speakNumber(number) {
+      const isHokkien = speechModeSelect.value === 'hokkien';
+      if (isHokkien) {
+        const audioPath = hokkienAudioMap.get(number);
+        if (audioPath) {
+          const audio = new Audio(audioPath);
+          audio.playbackRate = getSpeechRate();
+          audio.play().catch(() => {
+            playSpeechSynthesis(number);
+          });
+          return;
+        }
+      }
+
+      playSpeechSynthesis(number);
     }
 
     function renderSeenNumbers() {
@@ -381,7 +379,6 @@
 
     startButton.addEventListener('click', () => {
       initVoiceList();
-      ensureAudioContext();
       resetRound();
       welcomeScreen.classList.add('hidden');
       gameScreen.classList.remove('hidden');
