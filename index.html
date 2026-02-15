@@ -186,7 +186,7 @@
           <span>播報語言</span>
           <select id="speech-mode">
             <option value="mandarin">國語（繁體）</option>
-            <option value="hokkien">臺語（Hokkien，需裝置支援）</option>
+            <option value="hokkien">臺語（Hokkien，使用內建音檔）</option>
           </select>
         </div>
 
@@ -233,6 +233,19 @@
     let calledNumbers = [];
     let voiceMap = { mandarin: null, hokkien: null };
     let audioContext = null;
+    const hokkienAudioMap = new Map();
+
+    async function preloadHokkienAudio() {
+      const tasks = Array.from({ length: 75 }, async (_, index) => {
+        const number = index + 1;
+        const response = await fetch(`audio/nan-tw/${number}.wav.txt`);
+        const base64Data = await response.text();
+        const audio = new Audio(`data:audio/wav;base64,${base64Data.trim()}`);
+        hokkienAudioMap.set(number, audio);
+      });
+
+      await Promise.all(tasks);
+    }
 
     function updateSpeedLabel() {
       speedValue.textContent = `${Number(speedSlider.value).toFixed(1)}x`;
@@ -249,12 +262,12 @@
       voiceHint.classList.toggle('warning', isHokkien && !hasHokkienVoice);
 
       if (isHokkien && !hasHokkienVoice) {
-        voiceHint.textContent = '目前裝置未偵測到臺語語音（nan-TW）。將改用國語語音播報；若要純臺語建議使用支援臺語語音的瀏覽器或改用預錄音檔。';
+        voiceHint.textContent = '目前裝置未偵測到臺語語音（nan-TW）。將使用內建音檔播報，避免瀏覽器語音相容性問題。';
         return;
       }
 
       if (isHokkien) {
-        voiceHint.textContent = '已啟用臺語（Hokkien）播報。';
+        voiceHint.textContent = '已啟用臺語（Hokkien）播報，優先使用內建音檔。';
         return;
       }
 
@@ -331,6 +344,20 @@
       ensureAudioContext();
       playFallbackTone();
 
+      const isHokkien = speechModeSelect.value === 'hokkien';
+      if (isHokkien) {
+        const audio = hokkienAudioMap.get(number);
+        if (audio) {
+          audio.pause();
+          audio.currentTime = 0;
+          audio.playbackRate = getSpeechRate();
+          audio.play().catch(() => {
+            // ignore autoplay failures after user interaction edge cases
+          });
+          return;
+        }
+      }
+
       if (!('speechSynthesis' in window)) return;
 
       const utterance = new SpeechSynthesisUtterance(buildSpokenText(number));
@@ -379,13 +406,24 @@
       }
     }
 
-    startButton.addEventListener('click', () => {
+    startButton.addEventListener('click', async () => {
       initVoiceList();
       ensureAudioContext();
+      startButton.disabled = true;
+
+      if (!hokkienAudioMap.size) {
+        try {
+          await preloadHokkienAudio();
+        } catch (error) {
+          voiceHint.textContent = '內建臺語音檔載入失敗，將改用國語語音播報。';
+        }
+      }
+
       resetRound();
       welcomeScreen.classList.add('hidden');
       gameScreen.classList.remove('hidden');
       drawNextNumber(false);
+      startButton.disabled = false;
     });
 
     nextButton.addEventListener('click', () => drawNextNumber(true));
