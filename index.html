@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>賓果抽號機</title>
+  <style>
+    :root {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      color: #0f172a;
+      background: #f8fafc;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 1rem;
+    }
+
+    .card {
+      width: min(100%, 420px);
+      background: #ffffff;
+      border-radius: 16px;
+      padding: 1.25rem;
+      box-shadow: 0 10px 30px rgba(15, 23, 42, 0.1);
+    }
+
+    h1,
+    h2 {
+      margin-top: 0;
+      text-align: center;
+    }
+
+    p {
+      margin: 0.4rem 0 1rem;
+      text-align: center;
+      color: #475569;
+    }
+
+    .number-display {
+      font-size: clamp(3rem, 20vw, 5rem);
+      font-weight: 700;
+      text-align: center;
+      margin: 1rem 0;
+      color: #1d4ed8;
+      min-height: 1.2em;
+    }
+
+    .label {
+      font-size: 1rem;
+      text-align: center;
+      color: #334155;
+    }
+
+    .controls {
+      display: grid;
+      gap: 0.75rem;
+      margin-top: 1rem;
+    }
+
+    .speech-panel {
+      margin-top: 1rem;
+      padding: 0.8rem;
+      border-radius: 10px;
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      display: grid;
+      gap: 0.75rem;
+    }
+
+    .speech-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.95rem;
+      color: #334155;
+      gap: 0.75rem;
+    }
+
+    .speech-row select {
+      flex: 1;
+      border-radius: 8px;
+      border: 1px solid #cbd5e1;
+      padding: 0.4rem 0.5rem;
+      background: #fff;
+      font-size: 0.95rem;
+    }
+
+    input[type='range'] {
+      width: 100%;
+    }
+
+    button {
+      border: none;
+      border-radius: 10px;
+      padding: 0.9rem 1rem;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .primary {
+      background: #2563eb;
+      color: #fff;
+    }
+
+    .secondary {
+      background: #e2e8f0;
+      color: #0f172a;
+    }
+
+    .ghost {
+      background: #f1f5f9;
+      color: #1e293b;
+    }
+
+    button:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+    }
+
+    .hidden {
+      display: none;
+    }
+
+    .seen-container {
+      margin-top: 1rem;
+      padding-top: 0.75rem;
+      border-top: 1px solid #e2e8f0;
+    }
+
+    .seen-list {
+      display: grid;
+      grid-template-columns: repeat(10, minmax(0, 1fr));
+      gap: 0.35rem;
+      margin-top: 0.5rem;
+      font-size: 0.95rem;
+      color: #334155;
+    }
+
+    .seen-list span {
+      background: #f8fafc;
+      border-radius: 6px;
+      text-align: center;
+      padding: 0.2rem;
+      border: 1px solid #e2e8f0;
+    }
+
+    .voice-hint {
+      margin-top: 0.8rem;
+      font-size: 0.85rem;
+      color: #64748b;
+      text-align: center;
+      line-height: 1.4;
+    }
+
+    .voice-hint.warning {
+      color: #b45309;
+    }
+  </style>
+</head>
+<body>
+  <main class="card">
+    <section id="welcome-screen">
+      <h1>賓果抽號機</h1>
+      <p>每回合從 1 到 75 隨機抽號且不重複。</p>
+      <div class="controls">
+        <button id="start-button" class="primary">開始遊戲</button>
+      </div>
+    </section>
+
+    <section id="game-screen" class="hidden">
+      <h2>賓果回合</h2>
+      <div class="label">目前號碼</div>
+      <div id="current-number" class="number-display">--</div>
+
+      <div class="speech-panel">
+        <div class="speech-row">
+          <span>播報語言</span>
+          <select id="speech-mode">
+            <option value="mandarin">國語（繁體）</option>
+            <option value="hokkien">臺語（Hokkien，需裝置支援）</option>
+          </select>
+        </div>
+
+        <div>
+          <div class="speech-row">
+            <span>語音速度</span>
+            <strong id="speed-value">1.0x</strong>
+          </div>
+          <input id="speed-slider" type="range" min="0.6" max="1.5" step="0.1" value="1.0" />
+        </div>
+      </div>
+
+      <div class="controls">
+        <button id="next-button" class="primary">下一個號碼</button>
+        <button id="toggle-seen-button" class="secondary">顯示已開號碼</button>
+        <button id="restart-button" class="ghost">新回合</button>
+      </div>
+
+      <div id="seen-container" class="seen-container hidden">
+        <div class="label">目前已開號碼</div>
+        <div id="seen-list" class="seen-list"></div>
+      </div>
+
+      <div id="voice-hint" class="voice-hint">提示：請開啟裝置音量，語音會播報號碼。</div>
+    </section>
+  </main>
+
+  <script>
+    const welcomeScreen = document.getElementById('welcome-screen');
+    const gameScreen = document.getElementById('game-screen');
+    const startButton = document.getElementById('start-button');
+    const nextButton = document.getElementById('next-button');
+    const restartButton = document.getElementById('restart-button');
+    const toggleSeenButton = document.getElementById('toggle-seen-button');
+    const currentNumber = document.getElementById('current-number');
+    const seenContainer = document.getElementById('seen-container');
+    const seenList = document.getElementById('seen-list');
+    const speedSlider = document.getElementById('speed-slider');
+    const speedValue = document.getElementById('speed-value');
+    const speechModeSelect = document.getElementById('speech-mode');
+    const voiceHint = document.getElementById('voice-hint');
+
+    let remainingNumbers = [];
+    let calledNumbers = [];
+    let voiceMap = { mandarin: null, hokkien: null };
+    let audioContext = null;
+
+    function updateSpeedLabel() {
+      speedValue.textContent = `${Number(speedSlider.value).toFixed(1)}x`;
+    }
+
+    function getSpeechRate() {
+      return Number(speedSlider.value);
+    }
+
+    function updateVoiceHint() {
+      const isHokkien = speechModeSelect.value === 'hokkien';
+      const hasHokkienVoice = Boolean(voiceMap.hokkien);
+
+      voiceHint.classList.toggle('warning', isHokkien && !hasHokkienVoice);
+
+      if (isHokkien && !hasHokkienVoice) {
+        voiceHint.textContent = '目前裝置未偵測到臺語語音（nan-TW）。將改用國語語音播報；若要純臺語建議使用支援臺語語音的瀏覽器或改用預錄音檔。';
+        return;
+      }
+
+      if (isHokkien) {
+        voiceHint.textContent = '已啟用臺語（Hokkien）播報。';
+        return;
+      }
+
+      voiceHint.textContent = '提示：請開啟裝置音量，語音會播報號碼。';
+    }
+
+    function initVoiceList() {
+      if (!('speechSynthesis' in window)) return;
+      const voices = speechSynthesis.getVoices();
+      voiceMap = {
+        mandarin: voices.find((voice) => voice.lang === 'zh-TW')
+          || voices.find((voice) => voice.lang.startsWith('zh-'))
+          || null,
+        hokkien: voices.find((voice) => voice.lang === 'nan-TW')
+          || voices.find((voice) => voice.lang.toLowerCase().includes('nan'))
+          || null,
+      };
+      updateVoiceHint();
+    }
+
+    function ensureAudioContext() {
+      if (!audioContext) {
+        const Context = window.AudioContext || window.webkitAudioContext;
+        if (!Context) return;
+        audioContext = new Context();
+      }
+      if (audioContext.state === 'suspended') {
+        audioContext.resume();
+      }
+    }
+
+    function playFallbackTone() {
+      if (!audioContext) return;
+      const oscillator = audioContext.createOscillator();
+      const gainNode = audioContext.createGain();
+
+      oscillator.type = 'sine';
+      oscillator.frequency.value = 880;
+      gainNode.gain.value = 0.04;
+
+      oscillator.connect(gainNode);
+      gainNode.connect(audioContext.destination);
+
+      oscillator.start();
+      oscillator.stop(audioContext.currentTime + 0.15);
+    }
+
+    function resetRound() {
+      remainingNumbers = Array.from({ length: 75 }, (_, index) => index + 1);
+      calledNumbers = [];
+      currentNumber.textContent = '--';
+      seenList.innerHTML = '';
+      seenContainer.classList.add('hidden');
+      toggleSeenButton.textContent = '顯示已開號碼';
+      nextButton.disabled = false;
+    }
+
+    function buildSpokenText(number) {
+      return `第 ${number} 號`;
+    }
+
+    function getVoiceForCurrentMode() {
+      const isHokkien = speechModeSelect.value === 'hokkien';
+      if (isHokkien) return voiceMap.hokkien || voiceMap.mandarin;
+      return voiceMap.mandarin;
+    }
+
+    function getLanguageForCurrentMode() {
+      const isHokkien = speechModeSelect.value === 'hokkien';
+      return isHokkien ? (voiceMap.hokkien ? 'nan-TW' : 'zh-TW') : 'zh-TW';
+    }
+
+    function speakNumber(number) {
+      ensureAudioContext();
+      playFallbackTone();
+
+      if (!('speechSynthesis' in window)) return;
+
+      const utterance = new SpeechSynthesisUtterance(buildSpokenText(number));
+      utterance.lang = getLanguageForCurrentMode();
+      utterance.rate = getSpeechRate();
+
+      const voice = getVoiceForCurrentMode();
+      if (voice) utterance.voice = voice;
+
+      speechSynthesis.cancel();
+      speechSynthesis.speak(utterance);
+    }
+
+    function renderSeenNumbers() {
+      seenList.innerHTML = '';
+
+      calledNumbers
+        .slice()
+        .sort((a, b) => a - b)
+        .forEach((number) => {
+          const chip = document.createElement('span');
+          chip.textContent = number;
+          seenList.appendChild(chip);
+        });
+    }
+
+    function drawNextNumber(shouldAnnounce = true) {
+      if (!remainingNumbers.length) {
+        currentNumber.textContent = '完成';
+        nextButton.disabled = true;
+        return;
+      }
+
+      const randomIndex = Math.floor(Math.random() * remainingNumbers.length);
+      const [next] = remainingNumbers.splice(randomIndex, 1);
+
+      calledNumbers.push(next);
+      currentNumber.textContent = next;
+      renderSeenNumbers();
+      if (shouldAnnounce) {
+        speakNumber(next);
+      }
+
+      if (!remainingNumbers.length) {
+        nextButton.disabled = true;
+      }
+    }
+
+    startButton.addEventListener('click', () => {
+      initVoiceList();
+      ensureAudioContext();
+      resetRound();
+      welcomeScreen.classList.add('hidden');
+      gameScreen.classList.remove('hidden');
+      drawNextNumber(false);
+    });
+
+    nextButton.addEventListener('click', () => drawNextNumber(true));
+
+    toggleSeenButton.addEventListener('click', () => {
+      const isHiddenAfterToggle = seenContainer.classList.toggle('hidden');
+      toggleSeenButton.textContent = isHiddenAfterToggle ? '顯示已開號碼' : '隱藏已開號碼';
+    });
+
+    restartButton.addEventListener('click', () => {
+      resetRound();
+      drawNextNumber(false);
+    });
+
+    speedSlider.addEventListener('input', updateSpeedLabel);
+    speechModeSelect.addEventListener('change', updateVoiceHint);
+
+    if ('speechSynthesis' in window) {
+      speechSynthesis.onvoiceschanged = initVoiceList;
+      initVoiceList();
+    }
+
+    updateSpeedLabel();
+    updateVoiceHint();
+  </script>
+</body>
+</html>
