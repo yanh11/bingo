@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Bingo Number Caller</title>
+  <style>
+    :root {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      color: #0f172a;
+      background: #f8fafc;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 1rem;
+    }
+
+    .card {
+      width: min(100%, 420px);
+      background: #ffffff;
+      border-radius: 16px;
+      padding: 1.25rem;
+      box-shadow: 0 10px 30px rgba(15, 23, 42, 0.1);
+    }
+
+    h1, h2 {
+      margin-top: 0;
+      text-align: center;
+    }
+
+    p {
+      margin: 0.4rem 0 1rem;
+      text-align: center;
+      color: #475569;
+    }
+
+    .number-display {
+      font-size: clamp(3rem, 20vw, 5rem);
+      font-weight: 700;
+      text-align: center;
+      margin: 1rem 0;
+      color: #1d4ed8;
+      min-height: 1.2em;
+    }
+
+    .label {
+      font-size: 1rem;
+      text-align: center;
+      color: #334155;
+    }
+
+    .controls {
+      display: grid;
+      gap: 0.75rem;
+      margin-top: 1rem;
+    }
+
+    button {
+      border: none;
+      border-radius: 10px;
+      padding: 0.9rem 1rem;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .primary {
+      background: #2563eb;
+      color: #fff;
+    }
+
+    .secondary {
+      background: #e2e8f0;
+      color: #0f172a;
+    }
+
+    .ghost {
+      background: #f1f5f9;
+      color: #1e293b;
+    }
+
+    button:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+    }
+
+    .hidden {
+      display: none;
+    }
+
+    .seen-container {
+      margin-top: 1rem;
+      padding-top: 0.75rem;
+      border-top: 1px solid #e2e8f0;
+    }
+
+    .seen-list {
+      display: grid;
+      grid-template-columns: repeat(10, minmax(0, 1fr));
+      gap: 0.35rem;
+      margin-top: 0.5rem;
+      font-size: 0.95rem;
+      color: #334155;
+    }
+
+    .seen-list span {
+      background: #f8fafc;
+      border-radius: 6px;
+      text-align: center;
+      padding: 0.2rem;
+      border: 1px solid #e2e8f0;
+    }
+  </style>
+</head>
+<body>
+  <main class="card">
+    <section id="welcome-screen">
+      <h1>Bingo Number Caller</h1>
+      <p>Draw numbers from 1 to 75 without repeats.</p>
+      <div class="controls">
+        <button id="start-button" class="primary">Start Game</button>
+      </div>
+    </section>
+
+    <section id="game-screen" class="hidden">
+      <h2>Bingo Round</h2>
+      <div class="label">Current number</div>
+      <div id="current-number" class="number-display">--</div>
+
+      <div class="controls">
+        <button id="next-button" class="primary">Next Number</button>
+        <button id="toggle-seen-button" class="secondary">Show Seen Numbers</button>
+        <button id="restart-button" class="ghost">New Round</button>
+      </div>
+
+      <div id="seen-container" class="seen-container hidden">
+        <div class="label">Numbers seen so far</div>
+        <div id="seen-list" class="seen-list"></div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const welcomeScreen = document.getElementById('welcome-screen');
+    const gameScreen = document.getElementById('game-screen');
+    const startButton = document.getElementById('start-button');
+    const nextButton = document.getElementById('next-button');
+    const restartButton = document.getElementById('restart-button');
+    const toggleSeenButton = document.getElementById('toggle-seen-button');
+    const currentNumber = document.getElementById('current-number');
+    const seenContainer = document.getElementById('seen-container');
+    const seenList = document.getElementById('seen-list');
+
+    let remainingNumbers = [];
+    let calledNumbers = [];
+
+    function resetRound() {
+      remainingNumbers = Array.from({ length: 75 }, (_, index) => index + 1);
+      calledNumbers = [];
+      currentNumber.textContent = '--';
+      seenList.innerHTML = '';
+      seenContainer.classList.add('hidden');
+      toggleSeenButton.textContent = 'Show Seen Numbers';
+      nextButton.disabled = false;
+    }
+
+    function speakInTaiwanese(number) {
+      if (!('speechSynthesis' in window)) return;
+
+      const utterance = new SpeechSynthesisUtterance(`第 ${number} 號`);
+      utterance.lang = 'zh-TW';
+      utterance.rate = 0.9;
+      speechSynthesis.cancel();
+      speechSynthesis.speak(utterance);
+    }
+
+    function renderSeenNumbers() {
+      seenList.innerHTML = '';
+
+      calledNumbers
+        .slice()
+        .sort((a, b) => a - b)
+        .forEach((number) => {
+          const chip = document.createElement('span');
+          chip.textContent = number;
+          seenList.appendChild(chip);
+        });
+    }
+
+    function drawNextNumber() {
+      if (!remainingNumbers.length) {
+        currentNumber.textContent = 'Done';
+        nextButton.disabled = true;
+        return;
+      }
+
+      const randomIndex = Math.floor(Math.random() * remainingNumbers.length);
+      const [next] = remainingNumbers.splice(randomIndex, 1);
+
+      calledNumbers.push(next);
+      currentNumber.textContent = next;
+      renderSeenNumbers();
+      speakInTaiwanese(next);
+
+      if (!remainingNumbers.length) {
+        nextButton.disabled = true;
+      }
+    }
+
+    startButton.addEventListener('click', () => {
+      resetRound();
+      welcomeScreen.classList.add('hidden');
+      gameScreen.classList.remove('hidden');
+      drawNextNumber();
+    });
+
+    nextButton.addEventListener('click', drawNextNumber);
+
+    toggleSeenButton.addEventListener('click', () => {
+      const shouldShow = seenContainer.classList.toggle('hidden');
+      toggleSeenButton.textContent = shouldShow ? 'Show Seen Numbers' : 'Hide Seen Numbers';
+    });
+
+    restartButton.addEventListener('click', () => {
+      resetRound();
+      drawNextNumber();
+    });
+  </script>
+</body>
+</html>
