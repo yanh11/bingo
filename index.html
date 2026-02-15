@@ -214,6 +214,7 @@
     </section>
   </main>
 
+  <script src="audio/nan-tw-data.js"></script>
   <script>
     const welcomeScreen = document.getElementById('welcome-screen');
     const gameScreen = document.getElementById('game-screen');
@@ -233,19 +234,13 @@
     let calledNumbers = [];
     let voiceMap = { mandarin: null, hokkien: null };
     let audioContext = null;
-    const hokkienAudioMap = new Map();
-
-    async function preloadHokkienAudio() {
-      const tasks = Array.from({ length: 75 }, async (_, index) => {
-        const number = index + 1;
-        const response = await fetch(`audio/nan-tw/${number}.wav.txt`);
-        const base64Data = await response.text();
-        const audio = new Audio(`data:audio/wav;base64,${base64Data.trim()}`);
-        hokkienAudioMap.set(number, audio);
-      });
-
-      await Promise.all(tasks);
-    }
+    const hokkienAudioData = window.NAN_TW_AUDIO_DATA || {};
+    const hokkienAudioMap = new Map(
+      Object.entries(hokkienAudioData).map(([number, base64Data]) => [
+        Number(number),
+        new Audio(`data:audio/wav;base64,${base64Data}`),
+      ])
+    );
 
     function updateSpeedLabel() {
       speedValue.textContent = `${Number(speedSlider.value).toFixed(1)}x`;
@@ -258,11 +253,17 @@
     function updateVoiceHint() {
       const isHokkien = speechModeSelect.value === 'hokkien';
       const hasHokkienVoice = Boolean(voiceMap.hokkien);
+      const hasBuiltinAudio = hokkienAudioMap.size > 0;
 
-      voiceHint.classList.toggle('warning', isHokkien && !hasHokkienVoice);
+      voiceHint.classList.toggle('warning', isHokkien && !hasHokkienVoice && !hasBuiltinAudio);
+
+      if (isHokkien && hasBuiltinAudio) {
+        voiceHint.textContent = '已啟用臺語（Hokkien）播報，使用內建音檔。';
+        return;
+      }
 
       if (isHokkien && !hasHokkienVoice) {
-        voiceHint.textContent = '目前裝置未偵測到臺語語音（nan-TW）。將使用內建音檔播報，避免瀏覽器語音相容性問題。';
+        voiceHint.textContent = '目前裝置未偵測到臺語語音（nan-TW），且內建音檔不可用，將改用國語語音播報。';
         return;
       }
 
