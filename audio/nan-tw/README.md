@@ -1,6 +1,11 @@
-# nan-tw fallback audio pack
+# nan-tw audio files
 
-This folder documents the Hokkien fallback audio source.
+Please upload your own Hokkien audio files here as MP4:
 
-Actual runtime audio payload is bundled in `../nan-tw-data.js` as base64-encoded WAV data
-(`window.NAN_TW_AUDIO_DATA`) so the page can play Hokkien fallback audio without extra fetch requests.
+- `1.mp4`
+- `2.mp4`
+- ...
+- `75.mp4`
+
+The web page reads `audio/nan-tw/<number>.mp4` when Hokkien mode is selected.
+If a file is missing or fails to play, the app falls back to browser speech synthesis.
